@@ -36,21 +36,21 @@ async function fetchData(url, params, retries = 3, backoffFactor = 2000, timeout
   return null;
 }
 
-// ✅ Correct function to get mean from a property for a depth
-function getMeanFromProperty(properties, propName) {
-  const prop = properties?.[propName];
-  if (!prop || !Array.isArray(prop.depths)) {
-    console.warn(`❌ Property '${propName}' not found or has no depths.`);
+// ✅ Correct logic for SoilGrids 'properties' structure
+function getMeanFromProperty(properties, name) {
+  const prop = properties[name];
+  if (!prop || !Array.isArray(prop.layers)) {
+    console.warn(`❌ Property '${name}' not found or has no layers.`);
     return null;
   }
 
-  const depth = prop.depths.find(d => d.range === '0-5cm');
-  if (!depth || typeof depth.values?.mean !== 'number') {
-    console.warn(`⚠️ No valid mean in 0-5cm for ${propName}`);
+  const layer = prop.layers.find(l => l.depth === '0-5cm');
+  if (!layer || typeof layer.values?.mean !== 'number') {
+    console.warn(`⚠️ No valid mean in 0-5cm for '${name}'.`);
     return null;
   }
 
-  return depth.values.mean;
+  return layer.values.mean;
 }
 
 app.post('/api/get-data', async (req, res) => {
@@ -60,12 +60,11 @@ app.post('/api/get-data', async (req, res) => {
       return res.status(400).json({ error: 'Latitude and longitude are required.' });
     }
 
-    // API URLs
+    // API URLs and params
     const elevationUrl = "https://api.open-elevation.com/api/v1/lookup";
     const powerUrl = "https://power.larc.nasa.gov/api/temporal/daily/point";
     const soilUrl = "https://rest.isric.org/soilgrids/v2.0/properties/query";
 
-    // Params
     const elevationParams = { locations: `${latitude},${longitude}` };
     const powerParams = {
       parameters: "T2M,RH2M,PRECTOTCORR",
@@ -99,14 +98,14 @@ app.post('/api/get-data', async (req, res) => {
     const humidity = nasaData.RH2M?.["20240101"] ?? null;
     const rainfall = nasaData.PRECTOTCORR?.["20240101"] ?? null;
 
-    // SoilGrids ✅ properly using `properties`
-    const soilProps = soilData?.properties;
-    if (!soilProps) {
-      console.error('❌ SoilGrids API returned invalid structure.');
-      throw new Error('SoilGrids API returned invalid structure.');
+    // ✅ Correct SoilGrids structure: 'properties'
+    const soilProperties = soilData?.properties;
+    if (!soilProperties || typeof soilProperties !== 'object') {
+      console.error('❌ SoilGrids API returned no properties.');
+      throw new Error('SoilGrids API returned invalid data.');
     }
 
-    console.log('🌱 Soil properties received:', Object.keys(soilProps));
+    console.log('🌱 Soil properties received:', Object.keys(soilProperties));
 
     const fetchedData = {
       latitude,
@@ -115,20 +114,20 @@ app.post('/api/get-data', async (req, res) => {
       temperature,
       humidity,
       rainfall,
-      phh2o: getMeanFromProperty(soilProps, 'phh2o'),
-      soc: getMeanFromProperty(soilProps, 'soc'),
-      bdod: getMeanFromProperty(soilProps, 'bdod'),
-      clay: getMeanFromProperty(soilProps, 'clay'),
-      sand: getMeanFromProperty(soilProps, 'sand'),
-      silt: getMeanFromProperty(soilProps, 'silt'),
-      cec: getMeanFromProperty(soilProps, 'cec'),
-      ocd: getMeanFromProperty(soilProps, 'ocd'),
-      nitrogen_soil: getMeanFromProperty(soilProps, 'nitrogen'),
-      wv1500: getMeanFromProperty(soilProps, 'wv1500'),
-      cfvo: getMeanFromProperty(soilProps, 'cfvo'),
-      wv0033: getMeanFromProperty(soilProps, 'wv0033'),
-      wv0010: getMeanFromProperty(soilProps, 'wv0010'),
-      ocs: getMeanFromProperty(soilProps, 'ocs')
+      phh2o: getMeanFromProperty(soilProperties, 'phh2o'),
+      soc: getMeanFromProperty(soilProperties, 'soc'),
+      bdod: getMeanFromProperty(soilProperties, 'bdod'),
+      clay: getMeanFromProperty(soilProperties, 'clay'),
+      sand: getMeanFromProperty(soilProperties, 'sand'),
+      silt: getMeanFromProperty(soilProperties, 'silt'),
+      cec: getMeanFromProperty(soilProperties, 'cec'),
+      ocd: getMeanFromProperty(soilProperties, 'ocd'),
+      nitrogen_soil: getMeanFromProperty(soilProperties, 'nitrogen'),
+      wv1500: getMeanFromProperty(soilProperties, 'wv1500'),
+      cfvo: getMeanFromProperty(soilProperties, 'cfvo'),
+      wv0033: getMeanFromProperty(soilProperties, 'wv0033'),
+      wv0010: getMeanFromProperty(soilProperties, 'wv0010'),
+      ocs: getMeanFromProperty(soilProperties, 'ocs')
     };
 
     const inputForML = {
